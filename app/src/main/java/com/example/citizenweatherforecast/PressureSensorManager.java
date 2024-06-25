@@ -31,7 +31,7 @@ public class PressureSensorManager implements SensorEventListener {
 
         pressureSum+=currentPressure;
         pressureReadings++;
-            }
+    }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {

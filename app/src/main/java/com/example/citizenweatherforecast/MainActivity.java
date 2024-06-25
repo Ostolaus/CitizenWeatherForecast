@@ -3,10 +3,12 @@ package com.example.citizenweatherforecast;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.util.Log;
 import android.view.View;
 
 import androidx.work.PeriodicWorkRequest;
@@ -20,7 +22,6 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity{
     public static PressureSensorManager pressureSensorManager;
-    private static PeriodicWorkRequest sensorWorker;
     private SensorManager sensorManager;
     private Context appContext;
     public CountDownTimer timer;
@@ -96,22 +97,12 @@ public class MainActivity extends Activity{
         tv.setText(String.format("%.2f", val));
     }
 
-    public void startService(View view) throws InterruptedException {
-        if (!service_active){
-            service_active = true;
-            sharedEditor.putBoolean("service_active", true);
-            WorkManager.getInstance(appContext).cancelAllWorkByTag("sensorWorker");
+    public void startService(View view) {
+        Intent serviceIntent = new Intent(this, WorkService.class);
+        startService(serviceIntent);
 
-            pressureSensorManager.startListening();
-
-            long time_to_go_s = 3600L- LocalTime.now().getMinute()* 60L -LocalTime.now().getSecond();
-            //sensorWorker = new PeriodicWorkRequest.Builder(WorkService.class, 1, TimeUnit.HOURS).setInitialDelay(time_to_go_s, TimeUnit.SECONDS).build();
-            //sensorWorker = new PeriodicWorkRequest.Builder(WorkService.class, 15, TimeUnit.MINUTES).build();
-            startTimer(time_to_go_s);
-            WorkManager.getInstance(appContext).enqueue(sensorWorker);
-            TextView service_status_tv = (TextView) findViewById(R.id.serviceStatusTextView);
-            service_status_tv.setText(R.string.service_is_running);
-        }
+        TextView service_status_tv = (TextView) findViewById(R.id.serviceStatusTextView);
+        service_status_tv.setText(R.string.service_is_running);
     }
 
     @SuppressLint("SetTextI18n")
