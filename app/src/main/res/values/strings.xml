@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">CitizenWeatherForecast</string>
+    <string name="start_service_button_text">Start Service</string>
+    <string name="stop_service_button_text">Stop Service</string>
+    <string name="service_textview_not_running">Service is: Not Running</string>
+    <string name="service_textview_running">Service is: Running</string>
+    <string name="service_is_not_running">Service is: Not Running</string>
+    <string name="service_is_running">Service is: Running</string>
+</resources>
