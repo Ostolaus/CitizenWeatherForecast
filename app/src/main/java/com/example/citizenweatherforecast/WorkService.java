@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
@@ -20,9 +21,7 @@ import java.util.concurrent.CompletableFuture;
 public class WorkService extends Service {
 
     @Override
-    public void onCreate() {
-
-    }
+    public void onCreate() {}
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -31,10 +30,13 @@ public class WorkService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId){
-
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms();
+        }else {
+            MainActivity.setToast("Insufficient Android Version");
+            MainActivity.instance.finish();
+            System.exit(0);
         }
         Intent serviceIntent = new Intent(getApplicationContext(), WorkService.class);
         PendingIntent pendingIntent = PendingIntent.getService(
@@ -47,17 +49,16 @@ public class WorkService extends Service {
         Calendar calendar = Calendar.getInstance();
         //int millisUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 *1000;
         int millisUntilNextHour = 3000;
-        alarmManager.setExact(
-                AlarmManager.RTC_WAKEUP,
-                System.currentTimeMillis() + millisUntilNextHour,
-                pendingIntent
-        );
-
-        MainActivity.pressureSensorManager.startListening();
-        float avg = MainActivity.pressureSensorManager.getCurrentPressure();
-        Log.d("PRESSURE", "" + avg);
-        MainActivity.pressureSensorManager.stopListening();
+        if (MainActivity.sharedPreferences.getBoolean("service_status", false)){
+            alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + millisUntilNextHour,
+                    pendingIntent
+            );
+            MainActivity.dataHandler.updatePressure(MainActivity.pressureSensorManager.getMedian());
+        }
 
         return START_STICKY;
+
     }
 }

@@ -8,17 +8,13 @@ import android.content.SharedPreferences;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.CountDownTimer;
-import android.util.Log;
 import android.view.View;
 
-import androidx.work.PeriodicWorkRequest;
-import androidx.work.WorkManager;
 
+import java.util.Calendar;
 
-import java.time.LocalTime;
-import java.util.concurrent.TimeUnit;
 import android.widget.TextView;
-
+import android.widget.Toast;
 
 public class MainActivity extends Activity{
     public static PressureSensorManager pressureSensorManager;
@@ -38,7 +34,6 @@ public class MainActivity extends Activity{
     public final void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         pressureSensorManager = new PressureSensorManager(sensorManager);
         instance=this;
@@ -49,7 +44,7 @@ public class MainActivity extends Activity{
         sharedEditor = sharedPreferences.edit();
         initMeasurement();
         initVariables();
-
+        pressureSensorManager.startListening();
     }
 
     public void initVariables(){
@@ -57,10 +52,9 @@ public class MainActivity extends Activity{
     };
 
     public void stopService(View view) {
-        WorkManager.getInstance(context).cancelAllWorkByTag("sensorWorker");
-
         service_active = false;
         sharedEditor.putBoolean("service_status", false);
+        sharedEditor.apply();
         timer.cancel();
 
         TextView timerTextView = (TextView) findViewById(R.id.time_tv);
@@ -74,7 +68,7 @@ public class MainActivity extends Activity{
 
     @SuppressLint("DefaultLocale")
     public void predictNow(View view) throws InterruptedException {
-        float[] prediction = nnHandler.runInferenceSingleOutput(dataHandler.getNNData());
+        float[] prediction = nnHandler.runInferenceSingleOutput(dataHandler.generateNNData());
 
         TextView temp_tv = (TextView) findViewById(R.id.pred_temp_tv);
         TextView hum_tv = (TextView) findViewById(R.id.pred_hum_tv3);
@@ -92,12 +86,20 @@ public class MainActivity extends Activity{
     }
 
     @SuppressLint("DefaultLocale")
-    public void updatePressure(float val){
+    public static void updatePressureReading(float val){
         TextView tv = (TextView) MainActivity.instance.findViewById(R.id.latest_measurement_tv);
-        tv.setText(String.format("%.2f", val));
+        tv.setText(String.format("%.2f mBar", val));
     }
 
     public void startService(View view) {
+
+        Calendar calendar = Calendar.getInstance();
+        int secondsUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 ;
+        startTimer(secondsUntilNextHour);
+
+        sharedEditor.putBoolean("service_status", true);
+        sharedEditor.apply();
+
         Intent serviceIntent = new Intent(this, WorkService.class);
         startService(serviceIntent);
 
@@ -110,11 +112,6 @@ public class MainActivity extends Activity{
         latestMeasurement = measurement;
         TextView latest_measurement_tv = (TextView) findViewById(R.id.latest_measurement_tv);
         latest_measurement_tv.setText(Float.toString(latestMeasurement));
-
-        SharedPreferences settings = getApplicationContext().getSharedPreferences("sharedVars", MODE_PRIVATE);
-        SharedPreferences.Editor editor = settings.edit();
-        editor.putFloat("0", measurement);
-        editor.apply();
     }
 
     @SuppressLint("DefaultLocale")
@@ -141,5 +138,10 @@ public class MainActivity extends Activity{
                 startTimer(3600);
             }
         }.start();
+    }
+
+
+    public static void setToast(String message){
+        Toast.makeText(MainActivity.context, message, Toast.LENGTH_LONG).show();
     }
 }

@@ -1,6 +1,7 @@
 package com.example.citizenweatherforecast;
 
 import android.os.Looper;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.google.gson.Gson;
@@ -9,22 +10,21 @@ import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
 import com.loopj.android.http.JsonHttpResponseHandler;
 import com.loopj.android.http.RequestParams;
-import com.loopj.android.http.SyncHttpClient;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.text.ParseException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.lang.Math;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -33,19 +33,16 @@ public class DataHandler {
 
     private static AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
 
-    public List<Float> temperatures = new ArrayList<>();
-    public List<Float> humidities = new ArrayList<>();
-    public List<Float> pressures = new ArrayList<>();
-
     public float[] ownPressures = new float[24];
 
-    private List<List<Float>> NNData = new ArrayList<>();
+    private List<NNDataEntry> NNData = new ArrayList<>();
 
     private final Object lock = new Object();
 
     public void getCurrentData(
     ) {
-        String url = "https://api.open-meteo.com/v1/forecast?latitude=47.0667&longitude=15.4333&elevation=320&current=&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timezone=Europe%2FBerlin&start_date=2024-06-18&end_date=2024-06-19";
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("YYYY-MM-dd"));
+        String url = String.format("https://api.open-meteo.com/v1/forecast?latitude=47.0667&longitude=15.4333&elevation=320&current=&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timezone=Europe%%2FBerlin&start_date=%s&end_date=%s", date, date);
 
         RequestParams rp = new RequestParams();
 
@@ -70,34 +67,23 @@ public class DataHandler {
 
     public void saveData(JSONObject data) throws JSONException, ParseException {
         JSONObject hourly = (JSONObject) data.get("hourly");
-        JSONArray times = (JSONArray) hourly.get("time");
+        JSONArray tms = (JSONArray) hourly.get("time");
         JSONArray temps = (JSONArray) hourly.get("temperature_2m");
         JSONArray hums = (JSONArray) hourly.get("relative_humidity_2m");
         JSONArray pres = (JSONArray) hourly.get("surface_pressure");
-        temperatures = new Gson().fromJson(String.valueOf(temps), new TypeToken<List<Float>>() {}.getType());
-        humidities = new Gson().fromJson(String.valueOf(hums), new TypeToken<List<Float>>() {}.getType());
-        pressures = new Gson().fromJson(String.valueOf(pres), new TypeToken<List<Float>>() {}.getType());
+        List<Float> temperatures = new Gson().fromJson(String.valueOf(temps), new TypeToken<List<Float>>() {}.getType());
+        List<Float> humidities = new Gson().fromJson(String.valueOf(hums), new TypeToken<List<Float>>() {}.getType());
+        List<Float> pressures = new Gson().fromJson(String.valueOf(pres), new TypeToken<List<Float>>() {}.getType());
+        List<String> times = new Gson().fromJson(String.valueOf(tms), new TypeToken<List<String>>() {}.getType());
 
-        for (int i = 0; i < times.length(); i++) {
-            long seconds = LocalDateTime.parse(times.get(i).toString()).atZone(ZoneId.of(ZoneOffset.systemDefault().getId())).toEpochSecond();
-            double day_sin = Math.sin(seconds * 2 * Math.PI/(60*60*24));
-            double day_cos = Math.cos(seconds * 2 * Math.PI/(60*60*24));
-            double year_sin = Math.sin(seconds * 2 * Math.PI/(60*60*24*365.2425));
-            double year_cos = Math.cos(seconds * 2 * Math.PI/(60*60*24*365.2425));
-
-            List<Float> entry = new ArrayList<>();
-            entry.add(temperatures.get(i));
-            entry.add(humidities.get(i));
-            entry.add(pressures.get(i));
-            entry.add(0.f);
-            entry.add((float)day_sin);
-            entry.add((float)day_cos);
-            entry.add((float)year_sin);
-            entry.add((float)year_cos);
-            NNData.add(entry);}
+        Log.d("DATA", "saveData: " + times.size());
+        for (int i = 0; i < pressures.size(); i++) {
+            NNDataEntry nnDataEntry = new NNDataEntry(times.get(i), pressures.get(i), temperatures.get(i), humidities.get(i));
+            NNData.add(nnDataEntry.getEntry());
+       }
     }
 
-    public List<List<Float>> getNNData() throws InterruptedException {
+    public List<List<Float>> generateNNData() throws InterruptedException {
         if (NNData.isEmpty()){
             Thread t1 = new Thread(new Runnable() {
                 @Override
@@ -114,8 +100,7 @@ public class DataHandler {
             while (NNData.isEmpty()){
                 try {
                     lock.wait(); // Wait until data is fetched
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                } catch (InterruptedException ignored) {
                 }
             }
         }
@@ -124,17 +109,57 @@ public class DataHandler {
         int hour = currentTime.getHour();
 
         for (int i = NNData.size()-24 + hour - 6 + 1; i <= NNData.size()- 24 + hour; i++) {
-            ret_vals.add(NNData.get(i));
+            ret_vals.add(NNData.get(i).getEntry());
         }
 
         return ret_vals;
     }
 
-
-    public void get(String url, RequestParams params, AsyncHttpResponseHandler responseHandler) {
-        asyncHttpClient.get(url, params, responseHandler);
+    private void pastSixHoursAvailable(){
+        //Calender
     }
 
+    public void updatePressure(float pressure){
+        MainActivity.sharedEditor.putFloat(Integer.toString(LocalTime.now().getHour()), pressure);
+        MainActivity.sharedEditor.putFloat(Integer.toString((LocalTime.now().getHour()-5 + 24) % 24), 0);
+        MainActivity.sharedEditor.apply();
+
+        ownPressures[LocalTime.now().getHour()] = pressure;
+        ownPressures[(LocalTime.now().getHour()-5 + 24)%24] = 0;
+        MainActivity.updatePressureReading(pressure);
+
+        fillHoles();
+    }
+
+    private void fillHoles(){
+        int currentHour = LocalTime.now().getHour();
+        List<Integer> toFill = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            if(ownPressures[currentHour - i] == 0){
+                toFill.add(currentHour-i);
+            }
+        }
+        getCurrentData();
+        insertOwnPressures(toFill);
+
+    }
+
+
+    private void insertOwnPressures(List<Integer> toFill){
+        for (index: toFill) {
+
+        }
+
+        for (int i = 0; i < toFill.size(); i++) {
+            if (ownPressures[i] != 0){
+                NNData.get(i).setPressure(ownPressures[i]);
+            }
+        }
+    }
+
+    private static void get(String url, RequestParams params, AsyncHttpResponseHandler responseHandler) {
+        asyncHttpClient.get(url, params, responseHandler);
+    }
 
 
 }
