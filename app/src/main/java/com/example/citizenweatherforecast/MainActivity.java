@@ -55,7 +55,11 @@ public class MainActivity extends Activity{
         service_active = false;
         sharedEditor.putBoolean("service_status", false);
         sharedEditor.apply();
-        timer.cancel();
+
+        if(timer != null) {
+            timer.cancel();
+            timer = null;
+        }
 
         TextView timerTextView = (TextView) findViewById(R.id.time_tv);
         timerTextView.setText("");
@@ -67,7 +71,7 @@ public class MainActivity extends Activity{
     }
 
     @SuppressLint("DefaultLocale")
-    public void predictNow(View view) throws InterruptedException {
+    public void predictNow(View view){
         float[] prediction = nnHandler.runInferenceSingleOutput(dataHandler.generateNNData());
 
         TextView temp_tv = (TextView) findViewById(R.id.pred_temp_tv);
@@ -78,6 +82,19 @@ public class MainActivity extends Activity{
         hum_tv.setText(String.format("%.2f", prediction[1]));
         press_tv.setText(String.format("%.2f", prediction[2]));
     }
+
+    public void predictAndUpdate(){
+        float[] prediction = nnHandler.runInferenceSingleOutput(dataHandler.generateNNData());
+
+        TextView temp_tv = (TextView) findViewById(R.id.pred_temp_tv);
+        TextView hum_tv = (TextView) findViewById(R.id.pred_hum_tv3);
+        TextView press_tv = (TextView) findViewById(R.id.pred_press_tv);
+
+        temp_tv.setText(String.format("%.2f", prediction[0]));
+        hum_tv.setText(String.format("%.2f", prediction[1]));
+        press_tv.setText(String.format("%.2f", prediction[2]));
+    }
+
 
     public void measureNow(View view){
         pressureSensorManager.startListening();
@@ -92,13 +109,16 @@ public class MainActivity extends Activity{
     }
 
     public void startService(View view) {
+        sharedEditor.putBoolean("service_status", true);
+        sharedEditor.apply();
 
         Calendar calendar = Calendar.getInstance();
         int secondsUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 ;
-        startTimer(secondsUntilNextHour);
 
-        sharedEditor.putBoolean("service_status", true);
-        sharedEditor.apply();
+        if (timer == null) {
+            startTimer(secondsUntilNextHour);
+        }
+
 
         Intent serviceIntent = new Intent(this, WorkService.class);
         startService(serviceIntent);
@@ -111,33 +131,34 @@ public class MainActivity extends Activity{
     public void setLatestMeasurement(float measurement){
         latestMeasurement = measurement;
         TextView latest_measurement_tv = (TextView) findViewById(R.id.latest_measurement_tv);
-        latest_measurement_tv.setText(Float.toString(latestMeasurement));
+        latest_measurement_tv.setText(String.format("%.2f mBar", latestMeasurement));
     }
 
     @SuppressLint("DefaultLocale")
     public void initMeasurement(){
-        SharedPreferences settings = getApplicationContext().getSharedPreferences("sharedVars", MODE_PRIVATE);
-        latestMeasurement = settings.getFloat("0", 0);
+        latestMeasurement = sharedPreferences.getFloat("latest_pressure", 0);
         TextView latest_measurement_tv = (TextView) findViewById(R.id.latest_measurement_tv);
-        latest_measurement_tv.setText(String.format("%.2f", latestMeasurement));
+        latest_measurement_tv.setText(String.format("%.2f mBar", latestMeasurement));
     }
 
     public void startTimer(long time_in_s){
+        if (timer == null) {
+            TextView timerTextView = (TextView) findViewById(R.id.time_tv);
 
-        TextView timerTextView = (TextView) findViewById(R.id.time_tv);
+            timer = new CountDownTimer(time_in_s * 1000, 1000) { // 60000 milliseconds = 60 seconds
+                public void onTick(long millisUntilFinished) {
+                    long seconds_total = millisUntilFinished / 1000;
+                    long minutes_until_measurement = (int) seconds_total / 60;
+                    long seconds_until_measurement = (int) seconds_total - minutes_until_measurement * 60;
+                    timerTextView.setText(minutes_until_measurement + " min " + seconds_until_measurement + " s");
+                }
 
-        timer = new CountDownTimer(time_in_s * 1000, 1000) { // 60000 milliseconds = 60 seconds
-            public void onTick(long millisUntilFinished) {
-                long seconds_total = millisUntilFinished / 1000;
-                long minutes_until_measurement = (int) seconds_total /60;
-                long seconds_until_measurement = (int) seconds_total - minutes_until_measurement * 60;
-                timerTextView.setText(minutes_until_measurement + " min " + seconds_until_measurement + " s");
-            }
-
-            public void onFinish() {
-                startTimer(3600);
-            }
-        }.start();
+                public void onFinish() {
+                    startTimer(3600);
+                    timer = null;
+                }
+            }.start();
+        }
     }
 
 

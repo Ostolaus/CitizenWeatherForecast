@@ -23,6 +23,7 @@ public class NNHandler {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
     private MappedByteBuffer loadModelFile(Context context, String modelPath) throws IOException {
         AssetFileDescriptor fileDescriptor = context.getAssets().openFd(modelPath);
@@ -135,9 +136,4 @@ public class NNHandler {
         return processedOutput;
     }
 
-    public List<List<Float>> runInferenceMultipleOutput(List<List<Float>> input) {
-        List<List<Float>> output = new ArrayList<>();
-        tflite.run(input, output);
-        return output;
-    }
 }

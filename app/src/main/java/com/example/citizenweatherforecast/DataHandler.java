@@ -31,17 +31,17 @@ import cz.msebera.android.httpclient.Header;
 
 public class DataHandler {
 
-    private static AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
+    private static final AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
 
     public float[] ownPressures = new float[24];
 
-    private List<NNDataEntry> NNData = new ArrayList<>();
+    private final List<NNDataEntry> NNData = new ArrayList<>(24);
 
     private final Object lock = new Object();
 
     public void getCurrentData(
     ) {
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("YYYY-MM-dd"));
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         String url = String.format("https://api.open-meteo.com/v1/forecast?latitude=47.0667&longitude=15.4333&elevation=320&current=&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timezone=Europe%%2FBerlin&start_date=%s&end_date=%s", date, date);
 
         RequestParams rp = new RequestParams();
@@ -53,6 +53,7 @@ public class DataHandler {
                     try {
                         JSONObject serverResp = new JSONObject(response.toString());
                         saveData(serverResp);
+                        insertOwnPressures();
                     } catch (JSONException | ParseException e) {
                         Toast.makeText(MainActivity.instance, "Fetching Data Failed", Toast.LENGTH_SHORT).show();
                     }
@@ -79,19 +80,20 @@ public class DataHandler {
         Log.d("DATA", "saveData: " + times.size());
         for (int i = 0; i < pressures.size(); i++) {
             NNDataEntry nnDataEntry = new NNDataEntry(times.get(i), pressures.get(i), temperatures.get(i), humidities.get(i));
-            NNData.add(nnDataEntry.getEntry());
+            if (NNData.size() <= 24)
+                NNData.add(i, nnDataEntry);
+            else{
+                NNData.set(i, nnDataEntry);
+            }
        }
     }
 
-    public List<List<Float>> generateNNData() throws InterruptedException {
+    public List<List<Float>> generateNNData() {
         if (NNData.isEmpty()){
-            Thread t1 = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    Looper.prepare();
-                    getCurrentData();
-                    Looper.loop();
-                }
+            Thread t1 = new Thread(() -> {
+                Looper.prepare();
+                getCurrentData();
+                Looper.loop();
             });
             t1.start();
         }
@@ -115,11 +117,8 @@ public class DataHandler {
         return ret_vals;
     }
 
-    private void pastSixHoursAvailable(){
-        //Calender
-    }
-
     public void updatePressure(float pressure){
+        MainActivity.sharedEditor.putFloat("latest_pressure", pressure);
         MainActivity.sharedEditor.putFloat(Integer.toString(LocalTime.now().getHour()), pressure);
         MainActivity.sharedEditor.putFloat(Integer.toString((LocalTime.now().getHour()-5 + 24) % 24), 0);
         MainActivity.sharedEditor.apply();
@@ -128,30 +127,14 @@ public class DataHandler {
         ownPressures[(LocalTime.now().getHour()-5 + 24)%24] = 0;
         MainActivity.updatePressureReading(pressure);
 
-        fillHoles();
-    }
-
-    private void fillHoles(){
-        int currentHour = LocalTime.now().getHour();
-        List<Integer> toFill = new ArrayList<>();
-        for (int i = 0; i < 6; i++) {
-            if(ownPressures[currentHour - i] == 0){
-                toFill.add(currentHour-i);
-            }
-        }
         getCurrentData();
-        insertOwnPressures(toFill);
-
     }
 
 
-    private void insertOwnPressures(List<Integer> toFill){
-        for (index: toFill) {
-
-        }
-
-        for (int i = 0; i < toFill.size(); i++) {
+    private void insertOwnPressures(){
+        for (int i = 0; i < 24; i++) {
             if (ownPressures[i] != 0){
+
                 NNData.get(i).setPressure(ownPressures[i]);
             }
         }

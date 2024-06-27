@@ -47,8 +47,7 @@ public class WorkService extends Service {
         );
 
         Calendar calendar = Calendar.getInstance();
-        //int millisUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 *1000;
-        int millisUntilNextHour = 3000;
+        int millisUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 *1000;
         if (MainActivity.sharedPreferences.getBoolean("service_status", false)){
             alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
@@ -56,6 +55,7 @@ public class WorkService extends Service {
                     pendingIntent
             );
             MainActivity.dataHandler.updatePressure(MainActivity.pressureSensorManager.getMedian());
+            MainActivity.instance.predictAndUpdate();
         }
 
         return START_STICKY;
