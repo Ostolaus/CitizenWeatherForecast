@@ -107,11 +107,10 @@ public class DataHandler {
             }
         }
         List<List<Float>> ret_vals = new ArrayList<>();
-        ZonedDateTime currentTime = LocalDateTime.now().atZone(ZoneId.of(ZoneOffset.systemDefault().getId()));
-        int hour = currentTime.getHour();
+        int hour = LocalTime.now().getHour();
 
-        for (int i = NNData.size()-24 + hour - 6 + 1; i <= NNData.size()- 24 + hour; i++) {
-            ret_vals.add(NNData.get(i).getEntry());
+        for (int i = 5 ; i >= 0 ; i--) {
+            ret_vals.add(NNData.get((hour-i + 24) % 24).getEntry());
         }
 
         return ret_vals;

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NNDataEntry {
+    public String rawTime;
     public float pressure;
     public float temperature;
 
@@ -17,7 +18,7 @@ public class NNDataEntry {
     public double year_cos;
 
     public NNDataEntry(String time,float pressure,float temperature,float humidity){
-
+        this.rawTime = time;
         this.pressure = pressure;
         this.temperature = temperature;
         this.humidity = humidity;

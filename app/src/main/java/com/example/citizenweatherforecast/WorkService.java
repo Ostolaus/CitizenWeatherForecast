@@ -48,7 +48,7 @@ public class WorkService extends Service {
 
         Calendar calendar = Calendar.getInstance();
         int millisUntilNextHour = (60 - calendar.get(Calendar.MINUTE)) *60 *1000;
-        if (MainActivity.sharedPreferences.getBoolean("service_status", false)){
+        if (MainActivity.sharedPreferences.getBoolean("service_active", false)){
             alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
                     System.currentTimeMillis() + millisUntilNextHour,
